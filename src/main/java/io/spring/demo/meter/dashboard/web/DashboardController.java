@@ -1,5 +1,6 @@
-package io.spring.demo.meter.dashboard;
+package io.spring.demo.meter.dashboard.web;
 
+import io.spring.demo.meter.dashboard.DashboardProperties;
 import io.spring.demo.meter.dashboard.generator.ElectricityMeasure;
 import io.spring.demo.meter.dashboard.generator.MeasuresCollector;
 import io.spring.demo.meter.dashboard.generator.ZoneDescriptorRepository;
@@ -14,7 +15,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -23,18 +23,24 @@ import org.springframework.web.reactive.result.view.Rendering;
 @Controller
 public class DashboardController {
 
+	private final int historySize;
+
 	private final PowerGridSampleRepository powerGridSampleRepository;
 
 	private final ZoneDescriptorRepository zoneDescriptorRepository;
 
 	private final MeasuresCollector measuresCollector;
 
-	public DashboardController(PowerGridSampleRepository powerGridSampleRepository,
-			ZoneDescriptorRepository zoneDescriptorRepository, MeasuresCollector measuresCollector) {
+	public DashboardController(DashboardProperties properties,
+			PowerGridSampleRepository powerGridSampleRepository,
+			ZoneDescriptorRepository zoneDescriptorRepository,
+			MeasuresCollector measuresCollector) {
+		this.historySize = properties.getRenderer().getHistorySize();
 		this.powerGridSampleRepository = powerGridSampleRepository;
 		this.zoneDescriptorRepository = zoneDescriptorRepository;
 		this.measuresCollector = measuresCollector;
 	}
+
 	@GetMapping("/")
 	public Rendering home() {
 		return Rendering
@@ -45,8 +51,10 @@ public class DashboardController {
 
 	@GetMapping("/zones/{zoneId}")
 	public Mono<Rendering> displayZone(@PathVariable String zoneId) {
-		PageRequest pageRequest = PageRequest.of(0, 20, Sort.by("timestamp").descending());
-		Flux<PowerGridSample> latestSamples = this.powerGridSampleRepository.findAllByZoneId(zoneId, pageRequest);
+		PageRequest pageRequest = PageRequest.of(0, this.historySize,
+				Sort.by("timestamp").descending());
+		Flux<PowerGridSample> latestSamples = this.powerGridSampleRepository
+				.findAllByZoneId(zoneId, pageRequest);
 
 		return this.zoneDescriptorRepository.findById(zoneId)
 				.switchIfEmpty(Mono.error(new MissingDataException(zoneId)))
@@ -62,7 +70,6 @@ public class DashboardController {
 	public Flux<PowerGridSample> streamUpdates(@PathVariable String zoneId) {
 		return this.powerGridSampleRepository.findWithTailableCursorByZoneId(zoneId);
 	}
-
 
 	@GetMapping(path = "/zones/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
 	public Rendering streamZoneEvents() {
