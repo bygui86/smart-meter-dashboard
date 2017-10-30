@@ -1,4 +1,4 @@
-package io.spring.demo.meter.dashboard;
+package io.spring.demo.meter.dashboard.web;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
